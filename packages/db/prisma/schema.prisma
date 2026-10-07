@@ -71,8 +71,10 @@ model Resume {
   id          String   @id @default(cuid())
   userId      String
   fileName    String
-  fileUrl     String
+  storagePath String   @unique
+  fileUrl     String?
   mimeType    String
+  fileSize    Int
   extractedText String?
   version     Int      @default(1)
   isPrimary   Boolean  @default(false)
@@ -83,6 +85,8 @@ model Resume {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   applications Application[]
+
+  @@index([userId, createdAt])
 }
 
 model Company {

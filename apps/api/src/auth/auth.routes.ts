@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { requireAuth, AuthenticatedRequest } from "./auth.middleware.js";
+import { prisma } from "@jobpilot/db";
 
 import {
   loginUser,
@@ -99,6 +101,42 @@ router.post("/login", async (req, res) => {
       error: "Unable to login"
     });
   }
+});
+
+router.get(
+  "/me",
+  requireAuth,
+  async (req: AuthenticatedRequest, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId! },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        error: "User account not found",
+      });
+    }
+
+    return res.json({ user });
+  }
+);
+
+router.post("/logout", (_req, res) => {
+  res.clearCookie("jobpilot_session", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+  });
+
+  return res.status(200).json({
+    message: "Logged out successfully",
+  });
 });
 
 export default router;

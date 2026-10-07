@@ -10,6 +10,10 @@ export interface AuthenticatedRequest extends Request {
   userId?: string;
 }
 
+export interface AuthedRequest extends Request {
+  userId: string;
+}
+
 export function requireAuth(
   req: AuthenticatedRequest,
   res: Response,

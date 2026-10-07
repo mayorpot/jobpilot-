@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import authRouter from "./auth/auth.routes.js";
 import candidateRouter from "./candidate/candidate.routes.js";
 import healthRouter from "./routes/health.routes.js";
+import resumeRouter from "./resume/resume.routes.js";
 
 const app = express();
 
@@ -30,5 +31,6 @@ app.use(cookieParser());
 app.use("/health", healthRouter);
 app.use("/auth", authRouter);
 app.use("/candidate", candidateRouter);
+app.use("/resumes", resumeRouter);
 
 export default app;
