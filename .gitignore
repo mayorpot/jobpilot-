@@ -21,3 +21,4 @@ Thumbs.db*.tsbuildinfo
 .next
 dist
 node_modules
+*.tsbuildinfo
