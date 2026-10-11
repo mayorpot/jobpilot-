@@ -266,6 +266,12 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@jobpilot/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@jobpilot/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.3.3
