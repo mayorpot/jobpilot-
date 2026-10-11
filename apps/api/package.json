@@ -14,13 +14,17 @@
     "@jobpilot/db": "workspace:*",
     "@supabase/supabase-js": "^2.117.2",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.3.11",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.13.0",
     "multer": "^2.4.0",
+    "pdf-parse": "^2.4.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -30,6 +34,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^24.5.0",
+    "@types/pdf-parse": "^1.1.5",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }

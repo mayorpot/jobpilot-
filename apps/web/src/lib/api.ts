@@ -1,3 +1,4 @@
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
@@ -9,14 +10,18 @@ export async function apiRequest<T>(
   path: string,
   options: ApiOptions = {}
 ): Promise<T> {
-  const { authenticated = true, ...requestOptions } = options;
+  // Whether an endpoint requires login is separate from whether
+  // the browser should accept and send session cookies.
+  const { authenticated: _authenticated, ...requestOptions } = options;
 
   const response = await fetch(`${API_URL}${path}`, {
     ...requestOptions,
-    credentials: authenticated ? "include" : "omit",
+    credentials: "include",
     headers: {
-      "Content-Type": "application/json",
       ...requestOptions.headers,
+      ...(requestOptions.body instanceof FormData
+        ? {}
+        : { "Content-Type": "application/json" }),
     },
   });
 

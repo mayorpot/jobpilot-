@@ -7,6 +7,8 @@ import authRouter from "./auth/auth.routes.js";
 import candidateRouter from "./candidate/candidate.routes.js";
 import healthRouter from "./routes/health.routes.js";
 import resumeRouter from "./resume/resume.routes.js";
+import jobsRouter from "./jobs/jobs.routes.js";
+import matchesRouter from "./matches/matches.routes.js";
 
 const app = express();
 
@@ -32,5 +34,7 @@ app.use("/health", healthRouter);
 app.use("/auth", authRouter);
 app.use("/candidate", candidateRouter);
 app.use("/resumes", resumeRouter);
+app.use("/jobs", jobsRouter);
+app.use("/matches", matchesRouter);
 
 export default app;

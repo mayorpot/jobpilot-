@@ -13,6 +13,9 @@ import {
   uploadResume
 } from "./resume.storage.js";
 
+import { extractResumeText } from "./resume.parser.js";
+import { analyzeResumeText } from "./resume.analyzer.js";
+
 const router = Router();
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -58,6 +61,13 @@ router.post(
       );
 
       try {
+        const extractedText = await extractResumeText(
+          file.buffer,
+          file.mimetype
+        );
+
+        const structuredData = analyzeResumeText(extractedText);
+
         const resume = await prisma.$transaction(async (tx) => {
           await tx.resume.updateMany({
             where: {
@@ -70,7 +80,9 @@ router.post(
           });
 
           const existingCount = await tx.resume.count({
-            where: { userId: req.userId! }
+            where: {
+              userId: req.userId!
+            }
           });
 
           return tx.resume.create({
@@ -80,6 +92,10 @@ router.post(
               storagePath: uploaded.storagePath,
               mimeType: file.mimetype,
               fileSize: file.size,
+              extractedText,
+              structuredData,
+              processingStatus: "COMPLETED",
+              processedAt: new Date(),
               version: existingCount + 1,
               isPrimary: true
             },
@@ -90,15 +106,22 @@ router.post(
               fileSize: true,
               version: true,
               isPrimary: true,
+              extractedText: true,
+              structuredData: true,
+              processingStatus: true,
+              processedAt: true,
               createdAt: true
             }
           });
         });
 
-        return res.status(201).json({ resume });
-      } catch (databaseError) {
+        return res.status(201).json({
+          resume,
+          structuredData
+        });
+      } catch (error) {
         await deleteResumeFile(uploaded.storagePath).catch(console.error);
-        throw databaseError;
+        throw error;
       }
     } catch (error) {
       console.error(error);
@@ -123,6 +146,8 @@ router.get(
         fileSize: true,
         version: true,
         isPrimary: true,
+        processingStatus: true,
+        processedAt: true,
         createdAt: true
       }
     });

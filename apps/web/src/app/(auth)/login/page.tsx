@@ -3,18 +3,25 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
 import { apiRequest } from "@/lib/api";
+import { Input } from "@/components/input";
+import { Button } from "@/components/button";
 
 export default function LoginPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
+
     setError("");
     setLoading(true);
 
@@ -22,85 +29,89 @@ export default function LoginPage() {
       await apiRequest("/auth/login", {
         method: "POST",
         authenticated: false,
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       });
 
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to sign in."
+      );
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <Link href="/" className="text-2xl font-bold tracking-tight text-slate-950">
-          JobPilot<span className="text-blue-600">.</span>
-        </Link>
+    <div>
+      <p className="text-sm font-medium text-blue-600">
+        Welcome back
+      </p>
 
-        <h1 className="mt-8 text-2xl font-semibold text-slate-900">
-          Welcome back
-        </h1>
-        <p className="mt-2 text-sm text-slate-600">
-          Log in to manage your career profile and applications.
-        </p>
+      <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">
+        Sign in to JobPilot
+      </h2>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-          <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium">
-              Email address
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              autoComplete="email"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
+      <p className="mt-3 text-sm leading-6 text-slate-500">
+        Continue managing your career profile and opportunities.
+      </p>
 
-          <div>
-            <label htmlFor="password" className="mb-1 block text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+        <Input
+          id="email"
+          label="Email address"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="email"
+          required
+        />
 
-          {error && (
-            <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-              {error}
-            </p>
-          )}
+        <Input
+          id="password"
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(event) =>
+            setPassword(event.target.value)
+          }
+          autoComplete="current-password"
+          required
+        />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-blue-600 px-4 py-3 font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        {error && (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
-            {loading ? "Logging in..." : "Log in"}
-          </button>
-        </form>
+            {error}
+          </div>
+        )}
 
-        <p className="mt-6 text-center text-sm text-slate-600">
-          New to JobPilot?{" "}
-          <Link href="/register" className="font-medium text-blue-600 hover:underline">
-            Create an account
-          </Link>
-        </p>
-      </div>
-    </main>
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full"
+        >
+          {loading ? "Signing in..." : "Sign in"}
+        </Button>
+      </form>
+
+      <p className="mt-7 text-center text-sm text-slate-500">
+        Don't have an account?{" "}
+        <Link
+          href="/register"
+          className="font-medium text-blue-600 hover:text-blue-700"
+        >
+          Create one
+        </Link>
+      </p>
+    </div>
   );
 }

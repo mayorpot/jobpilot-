@@ -45,7 +45,7 @@ CREATE TABLE "Resume" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
-    "fileUrl" TEXT NOT NULL,
+    "fileUrl" TEXT,
     "mimeType" TEXT NOT NULL,
     "extractedText" TEXT,
     "version" INTEGER NOT NULL DEFAULT 1,

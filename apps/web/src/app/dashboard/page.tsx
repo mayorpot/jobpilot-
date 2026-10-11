@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { BriefcaseBusiness, FileText, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
+
 import { apiRequest } from "@/lib/api";
 
 type User = {
@@ -31,161 +33,242 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadDashboard() {
+    async function load() {
       try {
-        const result = await apiRequest<{ user: User }>("/auth/me");
-        setUser(result.user);
-
-        const profileResult = await apiRequest<{ profile: Profile | null }>(
-          "/candidate/profile"
+        const userResult = await apiRequest<{ user: User }>(
+          "/auth/me"
         );
+
+        const profileResult = await apiRequest<{
+          profile: Profile | null;
+        }>("/candidate/profile");
+
+        const resumeResult = await apiRequest<{
+          resumes: Resume[];
+        }>("/resumes");
+
+        setUser(userResult.user);
         setProfile(profileResult.profile);
-
-        const resumeResult = await apiRequest<{ resumes: Resume[] }>("/resumes");
         setResumes(resumeResult.resumes);
-      } catch (err) {
-        if (
-          err instanceof Error &&
-          (err.message.includes("Authentication") ||
-            err.message.includes("session") ||
-            err.message.includes("expired"))
-        ) {
-          router.replace("/login");
-          return;
-        }
-
-        setError(err instanceof Error ? err.message : "Unable to load dashboard");
+      } catch {
+        router.replace("/login");
       } finally {
         setLoading(false);
       }
     }
 
-    void loadDashboard();
+    void load();
   }, [router]);
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-sm text-slate-600">Loading your dashboard...</p>
-      </main>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-7 w-7 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+      </div>
     );
   }
 
-  return (
-    <main className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/dashboard" className="text-xl font-bold text-slate-950">
-            JobPilot<span className="text-blue-600">.</span>
-          </Link>
+  const firstName = user?.firstName || "there";
 
-          <div className="flex items-center gap-4">
-            <span className="hidden text-sm text-slate-600 sm:block">
-              {user?.email}
-            </span>
-            <button
-              onClick={async () => {
-                await apiRequest("/auth/logout", { method: "POST" });
-                router.replace("/login");
-              }}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+  return (
+    <div>
+      <header className="border-b border-slate-200 bg-white">
+        <div className="flex h-16 items-center justify-between px-6">
+          <div className="lg:hidden">
+            <Link
+              href="/dashboard"
+              className="font-semibold text-slate-950"
             >
-              Log out
-            </button>
+              JobPilot
+            </Link>
+          </div>
+
+          <div className="ml-auto">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+              {firstName.charAt(0).toUpperCase()}
+            </div>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-7xl px-6 py-10">
-        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-sm font-medium text-blue-600">Your workspace</p>
-            <h1 className="mt-1 text-3xl font-bold text-slate-950">
-              Welcome{user?.firstName ? `, ${user.firstName}` : " back"}
-            </h1>
-            <p className="mt-2 text-slate-600">
-              Your job search workspace is ready.
-            </p>
-          </div>
+        <div>
+          <p className="text-sm font-medium text-blue-600">
+            Overview
+          </p>
 
-          <Link
-            href="/onboarding"
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Edit career profile
-          </Link>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-950">
+            Good to see you, {firstName}.
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            Your JobPilot workspace keeps your career profile,
+            opportunities and applications in one place.
+          </p>
         </div>
 
-        {error && (
-          <p role="alert" className="mt-6 rounded-lg bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
+        <div className="mt-8 grid gap-5 md:grid-cols-3">
+          <DashboardCard
+            icon={<UserRound size={19} />}
+            label="Profile"
+            value={profile ? "Complete" : "Incomplete"}
+            description={
+              profile?.headline ||
+              "Add your professional profile"
+            }
+            href="/dashboard/profile"
+          />
 
-        <section className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">Career profile</p>
-            <p className="mt-2 text-xl font-semibold text-slate-900">
-              {profile ? "Created" : "Not completed"}
-            </p>
-            <p className="mt-2 text-sm text-slate-500">
-              {profile?.headline || "Add your professional headline"}
-            </p>
-          </div>
+          <DashboardCard
+            icon={<FileText size={19} />}
+            label="Resume"
+            value={`${resumes.length}`}
+            description={
+              resumes.length === 1
+                ? "Resume stored securely"
+                : "Resumes stored securely"
+            }
+            href="/dashboard/profile"
+          />
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">CVs uploaded</p>
-            <p className="mt-2 text-3xl font-semibold text-slate-900">
-              {resumes.length}
-            </p>
-            <p className="mt-2 text-sm text-slate-500">
-              {resumes.some((resume) => resume.isPrimary)
-                ? "Primary CV selected"
-                : "Upload your CV to get started"}
-            </p>
-          </div>
+          <DashboardCard
+            icon={<BriefcaseBusiness size={19} />}
+            label="Verified matches"
+            value="0"
+            description="No verified opportunities yet"
+            href="/dashboard/jobs"
+          />
+        </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">Job matches</p>
-            <p className="mt-2 text-3xl font-semibold text-slate-900">—</p>
-            <p className="mt-2 text-sm text-slate-500">
-              Job discovery is being connected.
-            </p>
-          </div>
-        </section>
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+          <section className="rounded-xl border border-slate-200 bg-white p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold text-slate-950">
+                  Job matches
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Verified opportunities matched to your profile.
+                </p>
+              </div>
 
-        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Your next steps
-          </h2>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg bg-slate-50 p-4">
-              <p className="font-medium text-slate-900">1. Complete your profile</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Add your target roles, skills, and preferred locations.
-              </p>
+              <Link
+                href="/dashboard/jobs"
+                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                View jobs
+              </Link>
             </div>
 
-            <div className="rounded-lg bg-slate-50 p-4">
-              <p className="font-medium text-slate-900">2. Upload your CV</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Keep your current resume in your private JobPilot workspace.
-              </p>
-            </div>
+            <div className="mt-8 rounded-xl border border-dashed border-slate-300 px-6 py-12 text-center">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                <BriefcaseBusiness size={20} />
+              </div>
 
-            <div className="rounded-lg bg-slate-50 p-4">
-              <p className="font-medium text-slate-900">3. Prepare for job matching</p>
-              <p className="mt-2 text-sm text-slate-600">
-                JobPilot will use your profile to evaluate discovered roles.
+              <h3 className="mt-4 font-medium text-slate-900">
+                No verified matches yet
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                Once JobPilot starts discovering and verifying
+                opportunities, relevant matches will appear here.
               </p>
             </div>
-          </div>
-        </section>
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-6">
+            <h2 className="font-semibold text-slate-950">
+              Your profile
+            </h2>
+
+            <div className="mt-5 space-y-5">
+              <ProfileRow
+                label="Target roles"
+                value={
+                  profile?.targetRoles?.length
+                    ? profile.targetRoles.join(", ")
+                    : "Not configured"
+                }
+              />
+
+              <ProfileRow
+                label="Skills"
+                value={
+                  profile?.skills?.length
+                    ? profile.skills.slice(0, 5).join(", ")
+                    : "Not configured"
+                }
+              />
+
+              <Link
+                href="/onboarding"
+                className="block text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                Update profile →
+              </Link>
+            </div>
+          </section>
+        </div>
       </div>
-    </main>
+    </div>
+  );
+}
+
+function DashboardCard({
+  icon,
+  label,
+  value,
+  description,
+  href,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  description: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-sm"
+    >
+      <div className="flex items-center gap-3 text-slate-500">
+        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
+          {icon}
+        </span>
+
+        <span className="text-sm font-medium">{label}</span>
+      </div>
+
+      <p className="mt-5 text-2xl font-semibold tracking-tight text-slate-950">
+        {value}
+      </p>
+
+      <p className="mt-1 truncate text-sm text-slate-500">
+        {description}
+      </p>
+    </Link>
+  );
+}
+
+function ProfileRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+
+      <p className="mt-1 text-sm leading-6 text-slate-700">
+        {value}
+      </p>
+    </div>
   );
 }

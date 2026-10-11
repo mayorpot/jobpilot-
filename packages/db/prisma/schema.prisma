@@ -7,6 +7,183 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id               String            @id @default(cuid())
+  email            String            @unique
+  passwordHash     String
+  firstName        String?
+  lastName         String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  applications     Application[]
+  candidateProfile CandidateProfile?
+  jobMatches       JobMatch[]
+  notifications    Notification[]
+  resumes          Resume[]
+}
+
+model CandidateProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  headline           String?
+  summary            String?
+  location           String?
+  yearsExperience    Int?
+  targetRoles        String[]
+  preferredLocations String[]
+  skills             String[]
+  industries         String[]
+  employmentTypes    String[]
+  remotePreference   String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Resume {
+  id            String        @id @default(cuid())
+  userId        String
+  fileName      String
+  fileUrl       String?
+  mimeType      String
+  extractedText String?
+  structuredData   Json?
+  processingStatus ProcessingStatus  @default(PENDING)
+  processingError   String?
+  processedAt      DateTime?
+  version       Int           @default(1)
+  isPrimary     Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  storagePath   String        @unique
+  fileSize      Int
+  applications  Application[]
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Company {
+  id             String   @id @default(cuid())
+  name           String
+  normalizedName String   @unique
+  website        String?
+  careersUrl     String?
+  domain         String?
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  jobs           Job[]
+}
+
+model JobSource {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  baseUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  jobs      Job[]
+}
+
+model Job {
+  id                  String               @id @default(cuid())
+  companyId           String
+  sourceId            String
+  externalId          String?
+  title               String
+  description         String
+  location            String?
+  employmentType      String?
+  remoteType          String?
+  canonicalUrl        String
+  applicationUrl      String?
+  postedAt            DateTime?
+  discoveredAt        DateTime             @default(now())
+  lastVerifiedAt      DateTime?
+  status              JobStatus            @default(ACTIVE)
+  applications        Application[]
+  company             Company              @relation(fields: [companyId], references: [id])
+  source              JobSource            @relation(fields: [sourceId], references: [id])
+  matches             JobMatch[]
+  verificationResults VerificationResult[]
+
+  @@unique([sourceId, externalId])
+  @@index([companyId])
+  @@index([status])
+  @@index([postedAt])
+}
+
+model JobMatch {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  score     Int
+  reasoning String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId, score])
+}
+
+model VerificationResult {
+  id         String   @id @default(cuid())
+  jobId      String
+  confidence Int
+  isVerified Boolean
+  evidence   Json
+  riskFlags  String[]
+  checkedAt  DateTime @default(now())
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+}
+
+model Application {
+  id                String            @id @default(cuid())
+  userId            String
+  jobId             String
+  resumeId          String?
+  status            ApplicationStatus @default(DRAFT)
+  tailoredResumeUrl String?
+  coverLetter       String?
+  answers           Json?
+  submittedAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  job               Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  resume            Resume?           @relation(fields: [resumeId], references: [id])
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId, status])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
 enum JobStatus {
   ACTIVE
   CLOSED
@@ -28,200 +205,4 @@ enum NotificationType {
   APPLICATION_READY
   APPLICATION_SUBMITTED
   SYSTEM
-}
-
-model User {
-  id              String           @id @default(cuid())
-  email           String           @unique
-  passwordHash    String
-  firstName       String?
-  lastName        String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  candidateProfile CandidateProfile?
-  resumes          Resume[]
-  jobMatches       JobMatch[]
-  applications     Application[]
-  notifications    Notification[]
-}
-
-model CandidateProfile {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-
-  headline          String?
-  summary           String?
-  location          String?
-  yearsExperience   Int?
-  targetRoles       String[]
-  preferredLocations String[]
-  skills            String[]
-  industries        String[]
-  employmentTypes   String[]
-  remotePreference  String?
-
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Resume {
-  id          String   @id @default(cuid())
-  userId      String
-  fileName    String
-  storagePath String   @unique
-  fileUrl     String?
-  mimeType    String
-  fileSize    Int
-  extractedText String?
-  version     Int      @default(1)
-  isPrimary   Boolean  @default(false)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  applications Application[]
-
-  @@index([userId, createdAt])
-}
-
-model Company {
-  id          String   @id @default(cuid())
-  name        String
-  normalizedName String @unique
-  website     String?
-  careersUrl  String?
-  domain      String?
-  description String?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  jobs Job[]
-}
-
-model JobSource {
-  id          String   @id @default(cuid())
-  name        String
-  type        String
-  baseUrl     String?
-  isActive    Boolean  @default(true)
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  jobs Job[]
-}
-
-model Job {
-  id              String    @id @default(cuid())
-  companyId       String
-  sourceId        String
-
-  externalId      String?
-  title           String
-  description     String
-  location        String?
-  employmentType  String?
-  remoteType      String?
-
-  canonicalUrl     String
-  applicationUrl  String?
-
-  postedAt        DateTime?
-  discoveredAt    DateTime  @default(now())
-  lastVerifiedAt  DateTime?
-
-  status          JobStatus @default(ACTIVE)
-
-  company Company  @relation(fields: [companyId], references: [id])
-  source  JobSource @relation(fields: [sourceId], references: [id])
-
-  matches        JobMatch[]
-  verificationResults VerificationResult[]
-  applications  Application[]
-
-  @@unique([sourceId, externalId])
-  @@index([companyId])
-  @@index([status])
-  @@index([postedAt])
-}
-
-model JobMatch {
-  id          String   @id @default(cuid())
-  userId      String
-  jobId       String
-
-  score       Int
-  reasoning   String?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, jobId])
-  @@index([userId, score])
-}
-
-model VerificationResult {
-  id              String   @id @default(cuid())
-  jobId           String
-
-  confidence      Int
-  isVerified      Boolean
-  evidence        Json
-  riskFlags       String[]
-
-  checkedAt       DateTime @default(now())
-
-  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  @@index([jobId])
-}
-
-model Application {
-  id              String            @id @default(cuid())
-  userId          String
-  jobId           String
-  resumeId        String?
-
-  status          ApplicationStatus @default(DRAFT)
-
-  tailoredResumeUrl String?
-  coverLetter      String?
-  answers          Json?
-
-  submittedAt     DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job    Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  resume Resume? @relation(fields: [resumeId], references: [id])
-
-  @@unique([userId, jobId])
-  @@index([userId, status])
-}
-
-model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-
-  type      NotificationType
-  title     String
-  message   String
-  data      Json?
-  readAt    DateTime?
-
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
 }
