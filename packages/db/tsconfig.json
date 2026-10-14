@@ -5,10 +5,11 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "noEmit": false,
+    "outDir": "./dist",
+    "declaration": true
   },
-  "include": [
-    "src",
-    "prisma.config.ts"
-  ]
+  "include": ["src/**/*", "generated/**/*"]
 }
