@@ -1,0 +1,53 @@
+services:
+  # --- JobPilot API (Express web service) ---
+  - type: web
+    name: jobpilot-api
+    runtime: node
+    plan: free
+    branch: master
+    buildCommand: >-
+      pnpm install &&
+      pnpm --filter @jobpilot/db db:generate &&
+      pnpm --filter @jobpilot/db build &&
+      pnpm --filter @jobpilot/api build
+    startCommand: pnpm --filter @jobpilot/api start
+    envVars:
+      - fromGroup: jobpilot-shared
+
+  # --- JobPilot Worker (BullMQ background processor) ---
+  - type: worker
+    name: jobpilot-worker
+    runtime: node
+    plan: free
+    branch: master
+    buildCommand: >-
+      pnpm install &&
+      pnpm --filter @jobpilot/db db:generate &&
+      pnpm --filter @jobpilot/db build &&
+      pnpm --filter @jobpilot/ai build &&
+      pnpm --filter @jobpilot/worker build
+    startCommand: pnpm --filter @jobpilot/worker start
+    envVars:
+      - fromGroup: jobpilot-shared
+
+envVarGroups:
+  - name: jobpilot-shared
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_RESUME_BUCKET
+        value: resumes
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash-lite
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
