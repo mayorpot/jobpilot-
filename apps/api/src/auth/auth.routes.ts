@@ -75,10 +75,13 @@ router.post("/login", async (req, res) => {
 
     const result = await loginUser(email, password);
 
+    // Cross-site cookie (frontend and API live on different domains),
+    // so SameSite must be "none" and Secure must always be true —
+    // browsers reject SameSite=None cookies that aren't Secure.
     res.cookie(SESSION_COOKIE_NAME, result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
       maxAge: SESSION_DURATION_MS
     });
 
@@ -128,10 +131,10 @@ router.get(
 );
 
 router.post("/logout", (_req, res) => {
-  res.clearCookie("jobpilot_session", {
+  res.clearCookie(SESSION_COOKIE_NAME, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: true,
+    sameSite: "none",
   });
 
   return res.status(200).json({
