@@ -17,10 +17,24 @@ const app = express();
 // ---------------------------------------------------------------------------
 app.use(helmet());
 
+const allowedOrigins = [
+  process.env.WEB_URL,
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+].filter((origin): origin is string => Boolean(origin));
+
 app.use(
   cors({
-    origin: process.env.WEB_URL ?? "http://localhost:3000",
-    credentials: true
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header, such as server-to-server calls.
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
+    credentials: true,
   })
 );
 
