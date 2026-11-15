@@ -83,19 +83,56 @@ function safeDate(value: string | number | undefined): Date | undefined {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "JobPilot/0.1 job-discovery",
-    },
-    signal: AbortSignal.timeout(20_000),
-  });
+  const maxAttempts = 3;
 
-  if (!response.ok) {
-    throw new Error(`Job source returned HTTP ${response.status}: ${url}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "JobPilot/0.1 job-discovery",
+        },
+        signal: AbortSignal.timeout(45_000),
+      });
+
+      if (!response.ok) {
+        const error = new Error(
+          `Job source returned HTTP ${response.status}: ${url}`
+        );
+
+        // Retry rate limits and temporary server errors only.
+        if (response.status !== 429 && response.status < 500) {
+          throw error;
+        }
+
+        throw error;
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      const retryable =
+        (error instanceof Error &&
+          (error.name === "TimeoutError" ||
+            error.name === "AbortError" ||
+            /HTTP (429|5\d\d)/.test(error.message))) ||
+        error instanceof TypeError;
+
+      if (!retryable || attempt === maxAttempts) {
+        throw error;
+      }
+
+      const delay = attempt * 3000;
+
+      console.warn(
+        `[job-discovery] Request failed. Retrying ${attempt}/${maxAttempts - 1} in ${delay / 1000}s...`,
+        error
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
 
-  return response.json() as Promise<T>;
+  throw new Error("Job source request failed after all retry attempts.");
 }
 
 async function getOrCreateSource(
@@ -167,6 +204,35 @@ function getWebsite(url: string): string | undefined {
   }
 }
 
+async function closeMissingJobs(
+  sourceId: string,
+  fetchedExternalIds: string[],
+): Promise<number> {
+  // An empty feed is not sufficient evidence that every vacancy
+  // has been removed. Preserve existing jobs in this situation.
+  if (fetchedExternalIds.length === 0) {
+    console.warn(
+      `[discovery] Empty feed for source ${sourceId}. Skipping vacancy closure.`,
+    );
+    return 0;
+  }
+
+  const result = await prisma.job.updateMany({
+    where: {
+      sourceId,
+      status: "ACTIVE",
+      externalId: {
+        notIn: fetchedExternalIds,
+      },
+    },
+    data: {
+      status: "CLOSED",
+    },
+  });
+
+  return result.count;
+}
+
 async function importGreenhouse(boardToken: string) {
   const boardUrl = `https://boards.greenhouse.io/${encodeURIComponent(boardToken)}`;
   const apiUrl = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(boardToken)}/jobs?content=true`;
@@ -174,6 +240,21 @@ async function importGreenhouse(boardToken: string) {
 
   if (!Array.isArray(data.jobs)) {
     throw new Error(`Unexpected Greenhouse response for ${boardToken}`);
+  }
+
+  const invalidJobs = data.jobs.filter(
+    (job) =>
+      job.id === undefined ||
+      job.id === null ||
+      !job.title?.trim() ||
+      !job.absolute_url?.trim() ||
+      !cleanText(job.content),
+  );
+
+  if (invalidJobs.length > 0) {
+    throw new Error(
+      `Greenhouse board ${boardToken} returned ${invalidJobs.length} invalid job records. Skipping reconciliation.`,
+    );
   }
 
   const source = await getOrCreateSource(
@@ -194,7 +275,13 @@ async function importGreenhouse(boardToken: string) {
     const description = cleanText(job.content);
     const canonicalUrl = job.absolute_url?.trim();
 
-    if (!job.id || !job.title?.trim() || !canonicalUrl || !description) {
+    if (
+      job.id === undefined ||
+      job.id === null ||
+      !job.title?.trim() ||
+      !canonicalUrl ||
+      !description
+    ) {
       continue;
     }
 
@@ -233,11 +320,21 @@ async function importGreenhouse(boardToken: string) {
     imported++;
   }
 
+  const closed = await closeMissingJobs(
+    source.id,
+    data.jobs.map((job) => String(job.id)),
+  );
+
+  console.log(
+    `[discovery] Greenhouse ${boardToken}: closed ${closed} missing vacancies.`,
+  );
+
   return {
     provider: "GREENHOUSE",
     boardToken,
     fetched: data.jobs.length,
     imported,
+    closed,
   };
 }
 
@@ -248,6 +345,20 @@ async function importLever(site: string) {
 
   if (!Array.isArray(jobs)) {
     throw new Error(`Unexpected Lever response for ${site}`);
+  }
+
+  const invalidJobs = jobs.filter(
+    (job) =>
+      !job.id?.trim() ||
+      !job.text?.trim() ||
+      !job.hostedUrl?.trim() ||
+      !cleanText(job.descriptionPlain || job.description),
+  );
+
+  if (invalidJobs.length > 0) {
+    throw new Error(
+      `Lever site ${site} returned ${invalidJobs.length} invalid job records. Skipping reconciliation.`,
+    );
   }
 
   const source = await getOrCreateSource(
@@ -307,11 +418,21 @@ async function importLever(site: string) {
     imported++;
   }
 
+  const closed = await closeMissingJobs(
+    source.id,
+    jobs.map((job) => job.id),
+  );
+
+  console.log(
+    `[discovery] Lever ${site}: closed ${closed} missing vacancies.`,
+  );
+
   return {
     provider: "LEVER",
     site,
     fetched: jobs.length,
     imported,
+    closed,
   };
 }
 
@@ -334,6 +455,7 @@ export async function runJobDiscovery() {
   }
 
   const results: Array<Record<string, string | number>> = [];
+  const failures: string[] = [];
 
   for (const board of greenhouseBoards) {
     try {
@@ -341,9 +463,14 @@ export async function runJobDiscovery() {
       results.push(result);
       console.log("[job-discovery] Imported Greenhouse board:", result);
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+
+      failures.push(`Greenhouse board ${board}: ${message}`);
+
       console.error(
         `[job-discovery] Greenhouse board ${board} failed:`,
-        error,
+        error
       );
     }
   }
@@ -354,8 +481,22 @@ export async function runJobDiscovery() {
       results.push(result);
       console.log("[job-discovery] Lever site:", result);
     } catch (error) {
-      console.error(`[job-discovery] Lever site ${site} failed:`, error);
+      const message =
+        error instanceof Error ? error.message : String(error);
+
+      failures.push(`Lever site ${site}: ${message}`);
+
+      console.error(
+        `[job-discovery] Lever site ${site} failed:`,
+        error
+      );
     }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Discovery completed with ${failures.length} failed employer source(s):\n${failures.join("\n")}`
+    );
   }
 
   return results;

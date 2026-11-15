@@ -1,0 +1,54 @@
+
+name: JobPilot Scheduled Job Discovery
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jobpilot-job-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover-jobs:
+    name: Import vacancies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      JOBPILOT_GREENHOUSE_BOARDS: ${{ vars.JOBPILOT_GREENHOUSE_BOARDS }}
+      JOBPILOT_LEVER_SITES: ${{ vars.JOBPILOT_LEVER_SITES }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.6.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @jobpilot/db db:generate
+
+      - name: Build database package
+        run: pnpm --filter @jobpilot/db build
+
+      - name: Run job discovery
+        run: pnpm --filter @jobpilot/worker exec tsx src/discovery/run-discovery.ts
