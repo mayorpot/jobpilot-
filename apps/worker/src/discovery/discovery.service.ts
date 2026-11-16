@@ -347,17 +347,20 @@ async function importLever(site: string) {
     throw new Error(`Unexpected Lever response for ${site}`);
   }
 
-  const invalidJobs = jobs.filter(
-    (job) =>
-      !job.id?.trim() ||
-      !job.text?.trim() ||
-      !job.hostedUrl?.trim() ||
-      !cleanText(job.descriptionPlain || job.description),
-  );
+  const isValidJob = (job: LeverJob) =>
+    Boolean(
+      job.id?.trim() &&
+        job.text?.trim() &&
+        job.hostedUrl?.trim() &&
+        cleanText(job.descriptionPlain || job.description),
+    );
+
+  const invalidJobs = jobs.filter((job) => !isValidJob(job));
+  const validJobs = jobs.filter(isValidJob);
 
   if (invalidJobs.length > 0) {
-    throw new Error(
-      `Lever site ${site} returned ${invalidJobs.length} invalid job records. Skipping reconciliation.`,
+    console.warn(
+      `[discovery] Lever ${site}: skipping ${invalidJobs.length} malformed records. Vacancy reconciliation will be skipped.`,
     );
   }
 
@@ -373,7 +376,7 @@ async function importLever(site: string) {
 
   let imported = 0;
 
-  for (const job of jobs) {
+  for (const job of validJobs) {
     const description = cleanText(job.descriptionPlain || job.description);
     const canonicalUrl = job.hostedUrl?.trim();
 
@@ -418,20 +421,29 @@ async function importLever(site: string) {
     imported++;
   }
 
-  const closed = await closeMissingJobs(
-    source.id,
-    jobs.map((job) => job.id),
-  );
+  let closed = 0;
 
-  console.log(
-    `[discovery] Lever ${site}: closed ${closed} missing vacancies.`,
-  );
+  if (invalidJobs.length === 0) {
+    closed = await closeMissingJobs(
+      source.id,
+      validJobs.map((job) => job.id),
+    );
+
+    console.log(
+      `[discovery] Lever ${site}: closed ${closed} missing vacancies.`,
+    );
+  } else {
+    console.warn(
+      `[discovery] Lever ${site}: reconciliation skipped because the feed contains malformed records.`,
+    );
+  }
 
   return {
     provider: "LEVER",
     site,
     fetched: jobs.length,
     imported,
+    skipped: invalidJobs.length,
     closed,
   };
 }
@@ -492,6 +504,34 @@ export async function runJobDiscovery() {
       );
     }
   }
+
+  const totalFetched = results.reduce(
+    (sum, result) => sum + Number(result.fetched ?? 0),
+    0,
+  );
+
+  const totalImported = results.reduce(
+    (sum, result) => sum + Number(result.imported ?? 0),
+    0,
+  );
+
+  const totalSkipped = results.reduce(
+    (sum, result) => sum + Number(result.skipped ?? 0),
+    0,
+  );
+
+  const totalClosed = results.reduce(
+    (sum, result) => sum + Number(result.closed ?? 0),
+    0,
+  );
+
+  console.log({
+    boardsProcessed: results.length,
+    totalFetched,
+    totalImported,
+    totalSkipped,
+    totalClosed,
+  });
 
   if (failures.length > 0) {
     throw new Error(
